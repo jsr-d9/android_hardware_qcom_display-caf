@@ -1,12 +1,12 @@
 #Common headers
-common_includes := hardware/qcom/display-caf/libgralloc
-common_includes += hardware/qcom/display-caf/liboverlay
-common_includes += hardware/qcom/display-caf/libcopybit
-common_includes += hardware/qcom/display-caf/libqdutils
-common_includes += hardware/qcom/display-caf/libhwcomposer
-common_includes += hardware/qcom/display-caf/libexternal
-common_includes += hardware/qcom/display-caf/libqservice
-common_includes += hardware/qcom/display-caf/libvirtual
+common_includes := hardware/qcom/display-caf/$(TARGET_BOARD_PLATFORM)/libgralloc
+common_includes += hardware/qcom/display-caf/$(TARGET_BOARD_PLATFORM)/liboverlay
+common_includes += hardware/qcom/display-caf/$(TARGET_BOARD_PLATFORM)/libcopybit
+common_includes += hardware/qcom/display-caf/$(TARGET_BOARD_PLATFORM)/libqdutils
+common_includes += hardware/qcom/display-caf/$(TARGET_BOARD_PLATFORM)/libhwcomposer
+common_includes += hardware/qcom/display-caf/$(TARGET_BOARD_PLATFORM)/libexternal
+common_includes += hardware/qcom/display-caf/$(TARGET_BOARD_PLATFORM)/libqservice
+common_includes += hardware/qcom/display-caf/$(TARGET_BOARD_PLATFORM)/libvirtual
 
 ifeq ($(TARGET_USES_POST_PROCESSING),true)
     common_flags     += -DUSES_POST_PROCESSING
