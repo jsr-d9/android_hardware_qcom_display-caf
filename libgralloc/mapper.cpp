@@ -344,6 +344,7 @@ int gralloc_perform(struct gralloc_module_t const* module,
 
             }
 #ifdef QCOM_BSP
+/*
         case GRALLOC_MODULE_PERFORM_UPDATE_BUFFER_GEOMETRY:
             {
                 int width = va_arg(args, int);
@@ -359,6 +360,7 @@ int gralloc_perform(struct gralloc_module_t const* module,
                 res = 0;
             }
             break;
+*/
 #endif
         case GRALLOC_MODULE_PERFORM_GET_STRIDE:
             {
