@@ -36,8 +36,6 @@
 #include <cutils/log.h>
 #include <sys/stat.h>
 #include <comptype.h>
-#include <SkBitmap.h>
-#include <SkImageEncoder.h>
 
 namespace qhwc {
 
@@ -53,8 +51,6 @@ bool HwcDebug::sDumpEnable = false;
 HwcDebug::HwcDebug(uint32_t dpy):
   mDumpCntLimRaw(0),
   mDumpCntrRaw(1),
-  mDumpCntLimPng(0),
-  mDumpCntrPng(1),
   mDpy(dpy) {
     char dumpPropStr[PROPERTY_VALUE_MAX];
     if(mDpy) {
@@ -107,36 +103,6 @@ bool HwcDebug::needToDumpLayers()
     time(&timeNow);
     localtime_r(&timeNow, &dumpTime);
 
-    if ((property_get("debug.sf.dump.png", dumpPropStr, NULL) > 0) &&
-            (strncmp(dumpPropStr, mDumpPropStrPng, PROPERTY_VALUE_MAX - 1))) {
-        // Strings exist & not equal implies it has changed, so trigger a dump
-        strncpy(mDumpPropStrPng, dumpPropStr, PROPERTY_VALUE_MAX - 1);
-        mDumpCntLimPng = atoi(dumpPropStr);
-        if (mDumpCntLimPng > MAX_ALLOWED_FRAMEDUMPS) {
-            ALOGW("Warning: Using debug.sf.dump.png %d (= max)",
-                MAX_ALLOWED_FRAMEDUMPS);
-            mDumpCntLimPng = MAX_ALLOWED_FRAMEDUMPS;
-        }
-        mDumpCntLimPng = (mDumpCntLimPng < 0) ? 0: mDumpCntLimPng;
-        if (mDumpCntLimPng) {
-            sprintf(mDumpDirPng,
-                    "/data/sfdump.png.%04d.%02d.%02d.%02d.%02d.%02d",
-                    dumpTime.tm_year + 1900, dumpTime.tm_mon + 1,
-                    dumpTime.tm_mday, dumpTime.tm_hour,
-                    dumpTime.tm_min, dumpTime.tm_sec);
-            if (0 == mkdir(mDumpDirPng, 0777))
-                mDumpCntrPng = 0;
-            else {
-                ALOGE("Error: %s. Failed to create sfdump directory: %s",
-                    strerror(errno), mDumpDirPng);
-                mDumpCntrPng = mDumpCntLimPng + 1;
-            }
-        }
-    }
-
-    if (mDumpCntrPng <= mDumpCntLimPng)
-        mDumpCntrPng++;
-
     if ((property_get("debug.sf.dump", dumpPropStr, NULL) > 0) &&
             (strncmp(dumpPropStr, mDumpPropStrRaw, PROPERTY_VALUE_MAX - 1))) {
         // Strings exist & not equal implies it has changed, so trigger a dump
@@ -167,7 +133,7 @@ bool HwcDebug::needToDumpLayers()
     if (mDumpCntrRaw <= mDumpCntLimRaw)
         mDumpCntrRaw++;
 
-    bDumpLayer = (mDumpCntLimPng || mDumpCntLimRaw)? true : false;
+    bDumpLayer = mDumpCntLimRaw ? true : false;
     return bDumpLayer;
 }
 
@@ -268,26 +234,20 @@ void HwcDebug::logLayer(size_t layerIndex, hwc_layer_1_t hwLayers[])
 
 void HwcDebug::dumpLayer(size_t layerIndex, hwc_layer_1_t hwLayers[])
 {
-    char dumpLogStrPng[128] = "";
     char dumpLogStrRaw[128] = "";
-    bool needDumpPng = (mDumpCntrPng <= mDumpCntLimPng)? true:false;
     bool needDumpRaw = (mDumpCntrRaw <= mDumpCntLimRaw)? true:false;
 
-    if (needDumpPng) {
-        sprintf(dumpLogStrPng, "[png-dump-frame: %03d of %03d]", mDumpCntrPng,
-            mDumpCntLimPng);
-    }
     if (needDumpRaw) {
         sprintf(dumpLogStrRaw, "[raw-dump-frame: %03d of %03d]", mDumpCntrRaw,
             mDumpCntLimRaw);
     }
 
-    if (!(needDumpPng || needDumpRaw))
+    if (!needDumpRaw)
         return;
 
     if (NULL == hwLayers) {
-        ALOGE("Display[%s] Layer[%d] %s%s Error: No hwc layers to dump.",
-            mDisplayName, layerIndex, dumpLogStrRaw, dumpLogStrPng);
+        ALOGE("Display[%s] Layer[%d] %s Error: No hwc layers to dump.",
+            mDisplayName, layerIndex, dumpLogStrRaw);
         return;
     }
 
@@ -296,50 +256,12 @@ void HwcDebug::dumpLayer(size_t layerIndex, hwc_layer_1_t hwLayers[])
     char pixFormatStr[32] = "None";
 
     if (NULL == hnd) {
-        ALOGI("Display[%s] Layer[%d] %s%s Skipping dump: Bufferless layer.",
-            mDisplayName, layerIndex, dumpLogStrRaw, dumpLogStrPng);
+        ALOGI("Display[%s] Layer[%d] %s Skipping dump: Bufferless layer.",
+            mDisplayName, layerIndex, dumpLogStrRaw);
         return;
     }
 
     getHalPixelFormatStr(hnd->format, pixFormatStr);
-
-    if (needDumpPng && hnd->base) {
-        bool bResult = false;
-        char dumpFilename[PATH_MAX];
-        SkBitmap *tempSkBmp = new SkBitmap();
-        SkBitmap::Config tempSkBmpConfig = SkBitmap::kNo_Config;
-        sprintf(dumpFilename, "%s/sfdump%03d.layer%d.%s.png", mDumpDirPng,
-            mDumpCntrPng, layerIndex, mDisplayName);
-
-        switch (hnd->format) {
-            case HAL_PIXEL_FORMAT_RGBA_8888:
-            case HAL_PIXEL_FORMAT_RGBX_8888:
-            case HAL_PIXEL_FORMAT_BGRA_8888:
-                tempSkBmpConfig = SkBitmap::kARGB_8888_Config;
-                break;
-            case HAL_PIXEL_FORMAT_RGB_565:
-                tempSkBmpConfig = SkBitmap::kRGB_565_Config;
-                break;
-            case HAL_PIXEL_FORMAT_RGB_888:
-            default:
-                tempSkBmpConfig = SkBitmap::kNo_Config;
-                break;
-        }
-        if (SkBitmap::kNo_Config != tempSkBmpConfig) {
-            tempSkBmp->setConfig(tempSkBmpConfig, hnd->width, hnd->height);
-            tempSkBmp->setPixels((void*)hnd->base);
-            bResult = SkImageEncoder::EncodeFile(dumpFilename,
-                                    *tempSkBmp, SkImageEncoder::kPNG_Type, 100);
-            ALOGI("Display[%s] Layer[%d] %s Dump to %s: %s",
-                mDisplayName, layerIndex, dumpLogStrPng,
-                dumpFilename, bResult ? "Success" : "Fail");
-        } else {
-            ALOGI("Display[%s] Layer[%d] %s Skipping dump: Unsupported layer"
-                " format %s for png encoder",
-                mDisplayName, layerIndex, dumpLogStrPng, pixFormatStr);
-        }
-        delete tempSkBmp; // Calls SkBitmap::freePixels() internally.
-    }
 
     if (needDumpRaw && hnd->base) {
         char dumpFilename[PATH_MAX];
