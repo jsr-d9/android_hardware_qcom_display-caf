@@ -24,6 +24,7 @@
 #define HWC_REMOVE_DEPRECATED_VERSIONS 1
 #include <fcntl.h>
 #include <math.h>
+#include <hardware/display_defs.h>
 #include <hardware/hwcomposer.h>
 #include <gr.h>
 #include <gralloc_priv.h>
@@ -40,9 +41,6 @@
 #define MAX_DISPLAY_DIM 2048
 
 #define DAEMON_SOCKET "pps"
-#ifdef QTI_BSP
-#include <exhwcomposer_defs.h>
-#endif
 
 //Fwrd decls
 struct hwc_context_t;
